@@ -38,7 +38,7 @@ jobs:
           import urllib.request
           import zipfile
 
-          url = "https://vhtoolkitwww.ict.usc.edu/ed/vh/VHUnityURP-Internal/webgl39.zip"
+          url = "https://vhtoolkitwww.ict.usc.edu/ed/vh/VHUnityURP-Internal/webgl39-decompfallback.zip"
           zip_path = "webgl-build.zip"
           out_dir = "_site"
 
