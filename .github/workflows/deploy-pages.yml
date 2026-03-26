@@ -1,0 +1,94 @@
+name: Deploy GitHub Pages from external WebGL zip
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Download and extract WebGL build
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p _site
+          python3 - <<'PY'
+          import os
+          import urllib.request
+          import zipfile
+
+          url = "https://vhtoolkitwww.ict.usc.edu/ed/vh/VHUnityURP-Internal/webgl39.zip"
+          zip_path = "webgl-build.zip"
+          out_dir = "_site"
+
+          print(f"Downloading: {url}")
+          urllib.request.urlretrieve(url, zip_path)
+
+          with zipfile.ZipFile(zip_path, "r") as zf:
+              zf.extractall(out_dir)
+
+          print("Extracted files:")
+          for root, dirs, files in os.walk(out_dir):
+              depth = root.count(os.sep) - out_dir.count(os.sep)
+              if depth > 2:
+                  continue
+              indent = "  " * depth
+              print(f"{indent}{os.path.basename(root) or root}/")
+              for f in files:
+                  print(f"{indent}  {f}")
+
+          nojekyll = os.path.join(out_dir, ".nojekyll")
+          if not os.path.exists(nojekyll):
+              open(nojekyll, "w").close()
+              print("Created .nojekyll")
+          PY
+
+      - name: Normalize nested top-level folder if needed
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ ! -f "_site/index.html" ]; then
+            shopt -s nullglob
+            entries=( _site/* )
+            if [ "${#entries[@]}" -eq 1 ] && [ -d "${entries[0]}" ] && [ -f "${entries[0]}/index.html" ]; then
+              tmpdir="$(mktemp -d)"
+              mv "${entries[0]}"/* "$tmpdir"/
+              rm -rf _site
+              mkdir -p _site
+              mv "$tmpdir"/* _site/
+              rmdir "$tmpdir" || true
+              echo "Flattened one nested top-level folder."
+            fi
+          fi
+
+          test -f "_site/index.html"
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./_site
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
